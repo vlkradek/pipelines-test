@@ -1,40 +1,23 @@
 name: CD
 
 on:
-  push:
-    branches: [ "main" ]
+  workflow_run:
+    workflows: ["CI"]
+    types: [ completed ]
 
 jobs:
   deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Build Docker image
-        run: docker build -t nextjs-app .
-
-      - name: Save Docker image
-        run: docker save nextjs-app | gzip > app.tar.gz
-
-      - name: Copy image to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          source: "app.tar.gz"
-          target: "~/apps/nextjs-app"
-
-      - name: Deploy on VPS
+      - name: Deploy to VPS via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           script: |
-            cd ~/apps/nextjs-app
-            docker load < app.tar.gz
-            docker compose down
+            cd ~/apps/pipelines-test
+            docker compose pull
             docker compose up -d
